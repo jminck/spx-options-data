@@ -6,6 +6,9 @@ PUT _template/option-price-data
       "20-Wide IB Value": {
         "type": "float"
       },
+      "30-Wide IB Value": {
+        "type": "float"
+      },
       "40-Wide IB Value": {
         "type": "float"
       },

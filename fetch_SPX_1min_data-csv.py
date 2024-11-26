@@ -7,7 +7,6 @@ import pandas as pd
 import os
 from typing import List, Dict
 from pathlib import Path
-import json
 
 # Setup logging
 log_dir = 'logs'
@@ -336,17 +335,14 @@ def save_daily_data(df: pd.DataFrame, symbol: str, date: str, output_dir: str):
     is_complete = is_complete_trading_day(df, date)
     
     # Create filename
-    filename = f"{symbol}_min_{date_formatted}_{'complete' if is_complete else 'partial'}.ndjson"
+    filename = f"{symbol}_min_{date_formatted}_{'complete' if is_complete else 'partial'}.csv"
     filepath = os.path.join(output_dir, filename)
     
     # Filter data for this date
     day_data = df[df['Time'].str.startswith(date)]
     
-    # Convert DataFrame to list of dictionaries and save as NDJSON
-    with open(filepath, 'w') as f:
-        for record in day_data.to_dict('records'):
-            f.write(json.dumps(record) + '\n')
-    
+    # Save to CSV
+    day_data.to_csv(filepath, index=False)
     logger.info(f"Saved {len(day_data)} records to {filename} ({'complete' if is_complete else 'partial'})")
 
 

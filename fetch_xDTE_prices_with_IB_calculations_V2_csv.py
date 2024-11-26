@@ -7,7 +7,6 @@ import time
 import os
 import pytz
 import csv
-import json
 
 def load_api_key():
     """Load API key from .api_key file in script directory"""
@@ -76,15 +75,6 @@ class MarketDataCollector:
         self.logger.addHandler(file_handler)
         self.logger.addHandler(console_handler)
 
-    def _setup_ndjson_files(self):
-        current_date = date.today().strftime('%Y%m%d')
-        
-        for dte in range(0, self.max_dte + 1):
-            filename = f"{self.symbol}_{dte}DTE_{current_date}.ndjson"
-            filepath = os.path.join(self.output_dir, filename)
-            if not os.path.exists(filepath):
-                open(filepath, 'w').close()
-                
     def _setup_csv_files(self):
         """Setup CSV files with headers for each DTE"""
         current_date = date.today().strftime('%Y%m%d')
@@ -434,7 +424,7 @@ class MarketDataCollector:
             return None
             
         return processed_data  
-    def save_data_csv(self, data, dte, current_date):
+    def save_data(self, data, dte, current_date):
         """Save processed data to CSV"""
         filename = f"{self.symbol}_{dte}DTE_{current_date.strftime('%Y%m%d')}.csv"
         filepath = os.path.join(self.output_dir, filename)
@@ -442,16 +432,6 @@ class MarketDataCollector:
         with open(filepath, 'a', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=list(data[0].keys()))
             writer.writerows(data)
-        
-        self.logger.info(f"Saved data to {filepath}")
-
-    def save_data(self, data, dte, current_date):
-        filename = f"{self.symbol}_{dte}DTE_{current_date.strftime('%Y%m%d')}.ndjson"
-        filepath = os.path.join(self.output_dir, filename)
-        
-        with open(filepath, 'a') as f:
-            for row in data:
-                f.write(json.dumps(row) + '\n')
         
         self.logger.info(f"Saved data to {filepath}")
 
@@ -465,7 +445,7 @@ class MarketDataCollector:
                 # Check if date has changed and reset logger and CSV files
                 if last_date != current_date:
                     self._setup_logging()
-                    self._setup_ndjson_files()
+                    self._setup_csv_files()
                     last_date = current_date
                 
                 # Check if market is open
