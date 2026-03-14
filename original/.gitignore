@@ -1,0 +1,8 @@
+.api_key
+ansible/roles/spxcollector/files/.api_key
+ansible/roles/spx1mindatacollector/files/.api_key
+data/*
+data2/*
+logs/*
+spxcollector/logs/*
+spxlogstash/logs/*

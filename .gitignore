@@ -1,4 +1,30 @@
+# API keys
 .api_key
-data/*
-data2/*
-logs/*
+ansible/roles/spxcollector/files/.api_key
+ansible/roles/spx1mindatacollector/files/.api_key
+
+# Log files
+logs/
+*.log
+**/logs/
+
+# Downloaded data / CSV output
+data/
+data2/
+**/*DTE*.csv
+**/*_min_*.csv
+*.ndjson
+
+# Project-specific log paths
+spxcollector/logs/
+spxlogstash/logs/
+
+# Logstash sincedb
+**/.sincedb
+**/.sincedb_*
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/

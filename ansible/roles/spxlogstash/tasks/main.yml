@@ -1,0 +1,88 @@
+---
+- name: Post symbol-price-data index template to Elasticsearch
+  ansible.builtin.command:
+    cmd: >
+      curl -s -X PUT "{{ elasticsearch_scheme }}://{{ elasticsearch_host }}:{{ elasticsearch_port }}/_template/symbol-price-data"
+      -u "{{ elasticsearch_user }}:{{ elasticsearch_password }}"
+      -H "Content-Type: application/json"
+      --data-binary @{{ playbook_dir }}/roles/spxlogstash/files/index_templates/symbol-price-data.json
+      -w "%{http_code}"
+      -o /dev/null
+  register: es_template_result
+  changed_when: es_template_result.stdout == '201'
+  failed_when: es_template_result.stdout not in ['200', '201']
+
+- name: Post option-price-data index template to Elasticsearch
+  ansible.builtin.command:
+    cmd: >
+      curl -s -X PUT "{{ elasticsearch_scheme }}://{{ elasticsearch_host }}:{{ elasticsearch_port }}/_template/option-price-data"
+      -u "{{ elasticsearch_user }}:{{ elasticsearch_password }}"
+      -H "Content-Type: application/json"
+      --data-binary @{{ playbook_dir }}/roles/spxlogstash/files/index_templates/option-price-data.json
+      -w "%{http_code}"
+      -o /dev/null
+  register: option_template_result
+  changed_when: option_template_result.stdout == '201'
+  failed_when: option_template_result.stdout not in ['200', '201']
+
+- name: Ensure Docker network exists
+  community.docker.docker_network:
+    name: "{{ docker_network_name }}"
+    state: present
+
+- name: Create SPX data directory on host
+  ansible.builtin.file:
+    path: "{{ spx_data_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Create trades directory on host
+  ansible.builtin.file:
+    path: "{{ spx_trades_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Create sincedb file for spxdata
+  ansible.builtin.file:
+    path: "{{ spx_data_dir }}/.sincedb"
+    state: touch
+    mode: "0777"
+
+- name: Create sincedb file for trades
+  ansible.builtin.file:
+    path: "{{ spx_trades_dir }}/.sincedb"
+    state: touch
+    mode: "0777"
+
+- name: Build spxlogstash Docker image
+  community.docker.docker_image:
+    name: "{{ spxlogstash_image_name }}"
+    source: build
+    build:
+      path: "{{ playbook_dir }}/roles/spxlogstash/files"
+      pull: false
+    force_source: true
+  register: spxlogstash_image
+
+- name: Remove existing spxlogstash container if present
+  community.docker.docker_container:
+    name: "{{ spxlogstash_container_name }}"
+    state: absent
+
+- name: Start spxlogstash container
+  community.docker.docker_container:
+    name: "{{ spxlogstash_container_name }}"
+    image: "{{ spxlogstash_image_name }}"
+    state: started
+    restart_policy: "{{ spxlogstash_restart_policy }}"
+    networks:
+      - name: "{{ docker_network_name }}"
+    volumes:
+      - "{{ spxlogstash_config_dir }}:/usr/share/logstash/pipeline"
+      - "{{ spxlogstash_yml_path }}:/usr/share/logstash/config/logstash.yml"
+      - "{{ spx_data_dir }}:/data/spxdata"
+      - "{{ spx_trades_dir }}:/data/trades"
+    env:
+      LL_ES_HOST: "{{ elasticsearch_host }}"
+      ES_USER: "{{ elasticsearch_user }}"
+      ES_PASSWORD: "{{ elasticsearch_password }}"

@@ -1,0 +1,58 @@
+---
+- name: Check if API key exists
+  ansible.builtin.stat:
+    path: "{{ spx1mindatacollector_source_dir }}/.api_key"
+  register: api_key_stat
+
+- name: Fail if API key not found
+  ansible.builtin.fail:
+    msg: |
+      Tradier API key not found. Create the file:
+        {{ spx1mindatacollector_source_dir }}/.api_key
+      Copy from .api_key.example and add your Tradier API key:
+        cp "{{ spx1mindatacollector_source_dir }}/.api_key.example" "{{ spx1mindatacollector_source_dir }}/.api_key"
+      Then edit .api_key with your real key.
+  when: not api_key_stat.stat.exists
+
+- name: Ensure Docker network exists
+  community.docker.docker_network:
+    name: "{{ docker_network_name }}"
+    state: present
+
+- name: Create SPX data directory on host
+  ansible.builtin.file:
+    path: "{{ spx_data_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Build spx1mindatacollector Docker image
+  community.docker.docker_image:
+    name: "{{ spx1mindatacollector_image_name }}"
+    source: build
+    build:
+      path: "{{ spx1mindatacollector_source_dir }}"
+      pull: false
+    force_source: true
+  register: spx1mindatacollector_image
+
+- name: Remove existing spx1mindatacollector container if present
+  community.docker.docker_container:
+    name: "{{ spx1mindatacollector_container_name }}"
+    state: absent
+
+- name: Start spx1mindatacollector container
+  community.docker.docker_container:
+    name: "{{ spx1mindatacollector_container_name }}"
+    image: "{{ spx1mindatacollector_image_name }}"
+    state: started
+    restart_policy: "{{ spx1mindatacollector_restart_policy }}"
+    networks:
+      - name: "{{ docker_network_name }}"
+    volumes:
+      - "{{ spx1mindatacollector_source_dir }}:/app"
+      - "{{ spx_data_dir }}:/data/spxdata"
+    command: >
+      sh -c "while true; do
+      python3 /app/fetch_SPX_1min_data-csv.py --output_dir /data/spxdata --days {{ spx1mindatacollector_days }};
+      sleep {{ spx1mindatacollector_interval_sec }};
+      done"

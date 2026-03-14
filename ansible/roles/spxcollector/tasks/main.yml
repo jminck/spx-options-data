@@ -1,0 +1,65 @@
+---
+- name: Check if API key exists
+  ansible.builtin.stat:
+    path: "{{ spxcollector_source_dir }}/.api_key"
+  register: api_key_stat
+
+- name: Fail if API key not found
+  ansible.builtin.fail:
+    msg: |
+      Tradier API key not found. Create the file:
+        {{ spxcollector_source_dir }}/.api_key
+      Copy from .api_key.example and add your Tradier API key:
+        cp "{{ spxcollector_source_dir }}/.api_key.example" "{{ spxcollector_source_dir }}/.api_key"
+      Then edit .api_key with your real key.
+  when: not api_key_stat.stat.exists
+
+- name: Ensure Docker network exists
+  community.docker.docker_network:
+    name: "{{ docker_network_name }}"
+    state: present
+
+- name: Create SPX data directory on host
+  ansible.builtin.file:
+    path: "{{ spx_data_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Create sincedb file for Logstash (spxdata)
+  ansible.builtin.file:
+    path: "{{ spx_data_dir }}/.sincedb"
+    state: touch
+    mode: "0777"
+
+- name: Build spxcollector Docker image
+  community.docker.docker_image:
+    name: "{{ spxcollector_image_name }}"
+    source: build
+    build:
+      path: "{{ spxcollector_source_dir }}"
+      pull: false
+    force_source: true
+  register: spxcollector_image
+
+- name: Remove existing spxcollector container if present
+  community.docker.docker_container:
+    name: "{{ spxcollector_container_name }}"
+    state: absent
+
+- name: Start spxcollector container
+  community.docker.docker_container:
+    name: "{{ spxcollector_container_name }}"
+    image: "{{ spxcollector_image_name }}"
+    state: started
+    restart_policy: "{{ spxcollector_restart_policy }}"
+    networks:
+      - name: "{{ docker_network_name }}"
+    volumes:
+      - "{{ spxcollector_source_dir }}:/app"
+      - "{{ spx_data_dir }}:/data/spxdata"
+    command: >
+      python /app/fetch_xDTE_prices_with_IB_calculations_V2.py
+      --symbol {{ spxcollector_symbol }}
+      --dte_days {{ spxcollector_dte_days }}
+      --output_dir /data/spxdata
+      {% if spxcollector_check_market_hours %}--check_market_hours{% endif %}

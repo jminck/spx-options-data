@@ -1,0 +1,54 @@
+---
+# =============================================================================
+# Variables (from buildcontainer.sh and create_logstash_container.sh)
+# Customize these for your environment - consider ansible-vault for secrets
+# =============================================================================
+
+- name: Deploy SPX options data pipeline
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_prompt:
+    - name: elasticsearch_password
+      prompt: "Elasticsearch password (press Enter to keep default)"
+      default: "FBpMiseXxHvBXotfwYlo"
+      private: true
+  vars:
+    # --- Paths ---
+    host_data_root: /mnt/d
+    # --- SPX Collector ---
+    spxcollector_container_name: spxcollector
+    spxcollector_image_name: spxcollector
+    spxcollector_source_dir: "{{ playbook_dir }}/roles/spxcollector/files"
+    spx_data_dir: "{{ host_data_root }}/spxdata"
+    spxcollector_symbol: SPX
+    spxcollector_dte_days: 7
+    spxcollector_check_market_hours: true
+    spxcollector_restart_policy: unless-stopped
+    # --- SPX 1min Data Collector ---
+    spx1mindatacollector_container_name: spx1mindatacollector
+    spx1mindatacollector_image_name: spx1mindatacollector
+    spx1mindatacollector_source_dir: "{{ playbook_dir }}/roles/spx1mindatacollector/files"
+    spx1mindatacollector_restart_policy: unless-stopped
+    spx1mindatacollector_days: 0
+    spx1mindatacollector_interval_sec: 3600
+    # --- Logstash ---
+    spxlogstash_container_name: spxlogstash
+    spxlogstash_image_name: spxlogstash
+    spxlogstash_config_dir: "{{ playbook_dir }}/roles/spxlogstash/config"
+    spxlogstash_yml_path: "{{ playbook_dir }}/roles/spxlogstash/files/logstash.yml"
+    spx_trades_dir: "{{ host_data_root }}/trades"
+    spxlogstash_restart_policy: always
+    logstash_base_image: docker.elastic.co/logstash/logstash:8.7.1
+    # --- Elasticsearch ---
+    elasticsearch_host: localhost
+    elasticsearch_port: 9200
+    elasticsearch_scheme: http
+    elasticsearch_user: elastic
+    # elasticsearch_password: set via vars_prompt below
+    # --- Docker ---
+    docker_network_name: elastic
+  roles:
+    - spxcollector
+    - spx1mindatacollector
+    - spxlogstash
